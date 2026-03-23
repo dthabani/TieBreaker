@@ -29,9 +29,17 @@ function App() {
   const [currentAnalysisType, setCurrentAnalysisType] = useState<AnalysisType | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   
   const [savedDecisions, setSavedDecisions] = useState<SavedDecision[]>([]);
+
+  // Auto-dismiss notifications after 3 seconds
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(null), 3000);
+    return () => clearTimeout(timer);
+  }, [notification]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('tiebreaker_user');
@@ -255,8 +263,10 @@ function App() {
   const handleSaveResult = () => {
     if (!result || !currentDecisionText || !user) return;
     
+    // Only consider it "already saved" if the existing save is current schema.
+    // Old-schema saves with the same text/type should be replaced, not skipped.
     const isAlreadySaved = savedDecisions.some(
-      s => s.decisionText === currentDecisionText && s.result.type === result.type
+      s => s.decisionText === currentDecisionText && s.result.type === result.type && s.schemaVersion === 2
     );
     if (isAlreadySaved) return;
 
@@ -264,19 +274,44 @@ function App() {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
       decisionText: currentDecisionText,
-      result: result
+      result: result,
+      schemaVersion: 2,
     };
     
-    const updated = [newSaved, ...savedDecisions];
+    // Remove any old-schema save with the same text+type before inserting the new one
+    const withoutOldDupe = savedDecisions.filter(
+      s => !(s.decisionText === currentDecisionText && s.result.type === result.type)
+    );
+    const updated = [newSaved, ...withoutOldDupe];
     setSavedDecisions(updated);
     localStorage.setItem(`tiebreaker_saved_${user.sub}`, JSON.stringify(updated));
   };
 
   const handleLoadSavedDecision = (saved: SavedDecision) => {
+    // Detect compatibility issues using actual data shape per type
+    const d = saved.result.data as any;
+    const isUnsupported =
+      saved.schemaVersion !== 2 && (
+        (saved.result.type === 'pros_cons' && !d.categories) ||
+        (saved.result.type === 'comparison' && !d.criteria)
+      );
+
+    if (isUnsupported) {
+      if (user) {
+        const updated = savedDecisions.filter(s => s.id !== saved.id);
+        setSavedDecisions(updated);
+        localStorage.setItem(`tiebreaker_saved_${user.sub}`, JSON.stringify(updated));
+      }
+      setIsSavedOpen(false);
+      setNotification('This saved analysis is no longer compatible with the current version and has been cleared.');
+      return;
+    }
+
     setCurrentDecisionText(saved.decisionText);
     setResult(saved.result);
     setAppState('results');
     setIsSavedOpen(false);
+    setError(null);
   };
 
   const handleDeleteSavedDecision = (id: string) => {
@@ -332,25 +367,29 @@ function App() {
   // LOCKED SCREEN: Traditional password + Optional Biometric trigger
   if (isLocked) {
     return (
-      <div className="glass-card" style={{ textAlign: 'center', marginTop: '15vh', maxWidth: '400px', margin: '15vh auto' }}>
+      <div
+        className="glass-card"
+        key={error || 'locked'}
+        style={{ textAlign: 'center', marginTop: '15vh', maxWidth: '400px', margin: '15vh auto', animation: error ? 'shake 0.4s ease' : undefined }}
+      >
         <Lock size={64} color="var(--primary)" style={{ margin: '0 auto 1.5rem auto' }} />
         <h2 style={{ marginBottom: '0.5rem', fontSize: '2rem' }}>App Locked</h2>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Enter your Master Password to access your profile and keys.</p>
-        
-        {error && (
-          <div style={{ color: 'var(--danger)', marginBottom: '1.5rem', padding: '0.8rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.9rem' }}>
-            {error}
-          </div>
-        )}
+        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Enter your Master Password to unlock the app.</p>
 
         <form onSubmit={handlePasswordUnlock} style={{ marginBottom: '1.5rem' }}>
           <div className="input-group">
+            {error && (
+              <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.4rem', textAlign: 'left' }}>
+                {error}
+              </p>
+            )}
             <input 
               type="password" 
-              className="input-field" 
+              className="input-field"
+              style={{ borderColor: error ? 'var(--danger)' : undefined }}
               placeholder="Master Password" 
               value={unlockPassword} 
-              onChange={e => setUnlockPassword(e.target.value)} 
+              onChange={e => { setUnlockPassword(e.target.value); setError(null); }} 
               required 
               autoFocus
             />
@@ -423,6 +462,19 @@ function App() {
             <div style={{ padding: '1rem', marginTop: '2rem' }}>
               <DecisionInput onSubmit={handleDecisionSubmit} disabled={false} />
             </div>
+          </div>
+        )}
+
+        {/* Auto-dismissing toast for non-critical notifications */}
+        {notification && (
+          <div style={{
+            position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+            background: 'var(--text-color)', color: '#fff', padding: '0.75rem 1.25rem',
+            borderRadius: '10px', fontSize: '0.9rem', zIndex: 9999,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxWidth: '480px', textAlign: 'center',
+            animation: 'fadeIn 0.3s ease'
+          }}>
+            {notification}
           </div>
         )}
 

@@ -1,8 +1,8 @@
 import type { AnalysisResult, AnalysisType } from '../types';
 
 export async function analyzeDecision(
-  decision: string, 
-  apiKey: string, 
+  decision: string,
+  apiKey: string,
   analysisType: AnalysisType
 ): Promise<AnalysisResult> {
   if (!apiKey) {
@@ -14,23 +14,26 @@ A user is facing the following decision or dilemma:
 "${decision}"\n\n`;
 
   if (analysisType === 'pros_cons') {
-    promptBuilder += `Please provide a simple Pros and Cons list.
-CRITICAL INSTRUCTION: If the user is deciding between multiple options, EVERY single item in your list MUST explicitly identify which option it applies to (e.g., "Basketball: Improves cardiovascular fitness.", "Football: Higher risk of concussions.").
-Return STRICTLY a valid JSON object matching this schema:
-{
-  "pros": ["pro 1", "pro 2"],
-  "cons": ["con 1", "con 2"]
-}`;
-  } else if (analysisType === 'comparison') {
-    promptBuilder += `Please identify the core options the user is choosing between and provide a comparison table format.
+    promptBuilder += `Identify the distinct options the user is choosing between. For EACH option, list its specific pros and cons.
 Return STRICTLY a valid JSON object matching this schema:
 {
   "options": [
     {
-      "name": "Option 1 Name",
-      "description": "Short description of the option",
-      "pros": ["pro 1", "pro 2"],
-      "cons": ["con 1", "con 2"]
+      "name": "Option Name",
+      "pros": ["pro specific to this option"],
+      "cons": ["con specific to this option"]
+    }
+  ]
+}`;
+  } else if (analysisType === 'comparison') {
+    promptBuilder += `Identify the distinct options the user is choosing between, then compare them across 5-7 meaningful criteria (e.g. Cost, Speed, Security, Ease of Use).
+Return STRICTLY a valid JSON object matching this schema:
+{
+  "options": ["Option A Name", "Option B Name"],
+  "criteria": [
+    {
+      "name": "Criterion Name",
+      "values": ["Value for Option A", "Value for Option B"]
     }
   ]
 }`;

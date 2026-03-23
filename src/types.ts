@@ -1,16 +1,20 @@
 export type AnalysisType = 'pros_cons' | 'comparison' | 'swot';
 
+// Pros/Cons: per-option cards, each with their own pros and cons lists
 export interface ProsConsResult {
-  pros: string[];
-  cons: string[];
-}
-
-export interface ComparisonResult {
   options: {
     name: string;
-    description: string;
     pros: string[];
     cons: string[];
+  }[];
+}
+
+// Comparison Table: criteria rows vs options columns
+export interface ComparisonResult {
+  options: string[];   // Column headers (e.g. ["Option A", "Option B"])
+  criteria: {
+    name: string;      // Row header (e.g. "Cost", "Speed", "Security")
+    values: string[];  // One value per option, in the same order
   }[];
 }
 
@@ -33,6 +37,7 @@ export interface SavedDecision {
   timestamp: number;
   decisionText: string;
   result: AnalysisResult;
+  schemaVersion?: number; // Absent or 1 = legacy, 2 = current
 }
 
 export interface UserProfile {

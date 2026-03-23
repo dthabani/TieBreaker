@@ -1,6 +1,26 @@
 import { X, Clock, Trash2 } from 'lucide-react';
 import type { SavedDecision } from '../types';
 
+/** 
+ * Validates that the saved data matches the structure 
+ * required by the current version of the UI.
+ */
+function isCompatible(saved: SavedDecision): boolean {
+  const d = saved.result.data as any;
+  if (saved.schemaVersion === 2) return true;
+
+  switch (saved.result.type) {
+    case 'pros_cons':
+      return !!d.categories && Array.isArray(d.categories);
+    case 'comparison':
+      return !!d.criteria && Array.isArray(d.criteria);
+    case 'swot':
+      return !!d.swot;
+    default:
+      return false;
+  }
+}
+
 interface SavedDecisionsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,6 +61,11 @@ export function SavedDecisionsModal({ isOpen, onClose, savedDecisions, onLoadDec
                     </h4>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                       {new Date(saved.timestamp).toLocaleDateString()} • {saved.result.type.replace('_', ' ').toUpperCase()}
+                      {!isCompatible(saved) && (
+                        <span style={{ marginLeft: '0.5rem', background: '#fee2e2', color: '#991b1b', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
+                          Incompatible
+                        </span>
+                      )}
                     </span>
                   </div>
                   <button 
