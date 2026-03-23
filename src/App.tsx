@@ -186,8 +186,18 @@ function App() {
     e.preventDefault();
     if (!masterPasswordHash || !user) return;
     setError(null);
-    const isValid = await verifyPassword(unlockPassword, masterPasswordHash);
-    if (isValid) {
+
+    const { verified, needsUpgrade } = await verifyPassword(unlockPassword, masterPasswordHash);
+
+    if (verified) {
+      // Lazy migration: if the stored hash is the old SHA-256 format, silently
+      // upgrade it to PBKDF2 on the first successful login.
+      if (needsUpgrade) {
+        const newHash = await hashPassword(unlockPassword);
+        setMasterPasswordHash(newHash);
+        localStorage.setItem(`tiebreaker_password_${user.sub}`, newHash);
+      }
+
       setIsLocked(false);
       setUnlockPassword('');
       localStorage.setItem(`tiebreaker_unlocked_at_${user.sub}`, Date.now().toString());
